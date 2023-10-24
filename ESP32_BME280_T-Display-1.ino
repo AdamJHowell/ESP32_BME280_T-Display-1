@@ -2,25 +2,26 @@
  * This sketch is a fork of my old PubSubWeather sketch, modified and modernized for the LilyGo T-Display (v 1.1) ESP32 devkit.
  * The devkit has a 1.14" ST7789V IPS display using GPIOs 19, 18, 5, 16, 23, and 4.
  * The battery management uses GPIO 14 as a reference voltage and GPIO 34 as an ADC to measure input voltage.
- * This sketch will use a GT-HT30 sensor (SHT-30 compatible) on address 0x44 to show temperature and humidity.
- * https://usa.banggood.com/GT-HT30-Module-SHT30-High-Precision-Digital-Temperature-and-Humidity-Measurement-Sensor-Module-IIC-I2C-Interface-p-1879767.html
+ * This sketch will use a BME280 sensor on address 0x76 to show temperature and humidity.
+ * https://www.aliexpress.us/item/2251832676107058.html
  * The ESP-32 SDA pin is GPIO 21, and SCL is GPIO 22.
  * Arduino IDE settings: Board: ESP32 Dev Module, PSRAM: Disabled, Flash Size: 4MB (32Mb), all other settings at the default value.
  * @copyright   Copyright © 2023 Adam Howell
  * @licence     The MIT License (MIT)
  */
-#include <TFT_eSPI.h>			 // This header is included in https://github.com/Xinyuan-LilyGO/TTGO-T-Display
-#include "WiFi.h"					 // This header is added to the IDE libraries after the ESP32 is added in board manager.
-#include <Wire.h>					 // This header is part of the standard library.  https://www.arduino.cc/en/reference/wire
-#include "esp_adc_cal.h"		 // Espressif's header for measuring input voltage.  This is added to the IDE libraries when the ESP32 is added in board manager.
-#include "daughters.h"			 // Created at http://www.rinkydinkelectronics.com/t_imageconverter565.php
-#include "ClosedCube_SHT31D.h" // This header is used to read from the HT30 sensor.  https://github.com/closedcube/ClosedCube_SHT31D_Arduino
-#include <PubSubClient.h>		 // PubSub is the MQTT API.  Author: Nick O'Leary  https://github.com/knolleary/pubsubclient
-#include "privateInfo.h"		 // I use this file to hide my network information from random people browsing my GitHub repo.
-#include <ArduinoJson.h>		 // https://arduinojson.org/
-#include <ESPmDNS.h>				 // Multicast DNS.  This is added to the IDE libraries when the ESP32 is added in board manager.
-#include <WiFiUdp.h>				 // OTA via Wi-Fi.  This is added to the IDE libraries when the ESP32 is added in board manager.
-#include <ArduinoOTA.h>			 // OTA.  This is added to the IDE libraries when the ESP32 is added in board manager.
+#include <Adafruit_Sensor.h> // Adafruit's unified sensor driver.
+#include <Adafruit_BME280.h> // Adafruit's BME280 driver.
+#include <TFT_eSPI.h>		  // This header is included in https://github.com/Xinyuan-LilyGO/TTGO-T-Display
+#include "WiFi.h"				  // This header is added to the IDE libraries after the ESP32 is added in board manager.
+#include <Wire.h>				  // This header is part of the standard library.  https://www.arduino.cc/en/reference/wire
+#include "esp_adc_cal.h"	  // Espressif's header for measuring input voltage.  This is added to the IDE libraries when the ESP32 is added in board manager.
+#include "daughters.h"		  // Created at http://www.rinkydinkelectronics.com/t_imageconverter565.php
+#include <PubSubClient.h>	  // PubSub is the MQTT API.  Author: Nick O'Leary  https://github.com/knolleary/pubsubclient
+#include "privateInfo.h"	  // I use this file to hide my network information from random people browsing my GitHub repo.
+#include <ArduinoJson.h>	  // https://arduinojson.org/
+#include <ESPmDNS.h>			  // Multicast DNS.  This is added to the IDE libraries when the ESP32 is added in board manager.
+#include <WiFiUdp.h>			  // OTA via Wi-Fi.  This is added to the IDE libraries when the ESP32 is added in board manager.
+#include <ArduinoOTA.h>		  // OTA.  This is added to the IDE libraries when the ESP32 is added in board manager.
 
 #define ADC_EN 14	 // ADC_EN is the GPIO used for a reference voltage.
 #define ADC_PIN 34 // ADC_PIN is the GPIO used to take a voltage reading from.
@@ -47,8 +48,8 @@
 
 // Device topic format: <location>/<device>/<metric>
 // Sensor topic format: <location>/<device>/<sensor>/<metric>
-const char *hostName = "T-Display_ESP32_HT30_OTA";						  // The hostname used for OTA access.
-const char *notes = "LilyGo TFT with HT30 and OTA";						  // Notes sent in the bulk publish.
+const char *hostName = "T-Display_ESP32_BME280_OTA";						  // The hostname used for OTA access.
+const char *notes = "LilyGo TFT with BME280 and OTA";						  // Notes sent in the bulk publish.
 const char *espControlTopic = "espControl";									  // This is a topic we subscribe to, to get updates.
 const char *commandTopic = "MasterBedroom/tDisplay/command";			  // The topic used to subscribe to update the configuration.  Commands: publishTelemetry, changeTelemetryInterval, publishStatus.
 const char *sketchTopic = "MasterBedroom/tDisplay/sketch";				  // The topic used to publish the sketch name.
@@ -57,9 +58,10 @@ const char *ipTopic = "MasterBedroom/tDisplay/ip";							  // The topic used to 
 const char *rssiTopic = "MasterBedroom/tDisplay/rssi";					  // The topic used to publish the Wi-Fi Received Signal Strength Indicator.
 const char *publishCountTopic = "MasterBedroom/tDisplay/publishCount"; // The topic used to publish the loop count.
 const char *notesTopic = "MasterBedroom/tDisplay/notes";					  // The topic used to publish notes relevant to this project.
-const char *tempCTopic = "MasterBedroom/tDisplay/sht30/tempC";			  // The topic used to publish the temperature in Celsius.
-const char *tempFTopic = "MasterBedroom/tDisplay/sht30/tempF";			  // The topic used to publish the temperature in Fahrenheit.
-const char *humidityTopic = "MasterBedroom/tDisplay/sht30/humidity";	  // The topic used to publish the humidity.
+const char *tempCTopic = "MasterBedroom/tDisplay/bme280/tempC";		  // The topic used to publish the temperature in Celsius.
+const char *tempFTopic = "MasterBedroom/tDisplay/bme280/tempF";		  // The topic used to publish the temperature in Fahrenheit.
+const char *pressureTopic = "MasterBedroom/tDisplay/bme280/pressure";  // The topic used to publish the barometric pressure in hPa.
+const char *humidityTopic = "MasterBedroom/tDisplay/bme280/humidity";  // The topic used to publish the humidity.
 const unsigned long JSON_DOC_SIZE = 1024;										  // The ArduinoJson document size, and size of some buffers.
 unsigned long publishInterval = 20000;											  // The delay in milliseconds between MQTT publishes.  This prevents "flooding" the broker.
 unsigned long sensorPollInterval = 5000;										  // The delay between polls of the sensor.  This should be greater than 100 milliseconds.
@@ -76,16 +78,17 @@ long rssi;																				  // A global to hold the Received Signal Strength
 float tempC;																			  // The sensor temperature in Celsius.
 float tempF;																			  // The sensor temperature in Fahrenheit.
 float humidity;																		  // The sensor relative humidity as a percentage.
+float pressure;																		  // The sensor relative humidity as a percentage.
 float voltage;																			  // This holds the calculated voltage.
 int referenceVoltage = 1100;														  // The number is used to tune for variances in the ADC.
-String ht30SerialNumber = "";														  // Typically something like 927334746.
+float SEALEVELPRESSURE_HPA = 1013.25;
+
 
 // Create class objects.
 WiFiClient wiFiClient;						// Network client.
 PubSubClient mqttClient( wiFiClient ); // MQTT client.
 TFT_eSPI tft = TFT_eSPI( 135, 240 );	// Graphics library.
-ClosedCube_SHT31D sht30;					// SH30 library.
-SHT31D result;									// The struct which will hold sensor data.
+Adafruit_BME280 bme;
 
 
 void onReceiveCallback( char *topic, byte *payload, unsigned int length )
@@ -112,10 +115,7 @@ void onReceiveCallback( char *topic, byte *payload, unsigned int length )
 		Serial.println( "Reading and publishing sensor values." );
 		// Poll the sensor and immediately publish the readings.
 		readTelemetry();
-		if( result.error == SHT3XD_NO_ERROR )
-		{
-			publishTelemetry();
-		}
+		publishTelemetry();
 		Serial.println( "Readings have been published." );
 	}
 	else if( strcmp( command, "changeTelemetryInterval" ) == 0 )
@@ -131,11 +131,10 @@ void onReceiveCallback( char *topic, byte *payload, unsigned int length )
 	}
 	else if( strcmp( command, "changeSeaLevelPressure" ) == 0 )
 	{
-		Serial.println( "Sea-level pressure is not implemented on the SHT series of sensors." );
-	}
-	else if( strcmp( command, "publishStatus" ) == 0 )
-	{
-		Serial.println( "publishStatus is not yet implemented." );
+		Serial.println( "Changing the sea-level pressure." );
+		float tempValue = doc["value"];
+		if( tempValue > 300 && tempValue < 3000 )
+			SEALEVELPRESSURE_HPA = tempValue;
 	}
 	else if( strcmp( command, "pollSensor" ) == 0 )
 	{
@@ -199,7 +198,7 @@ void printResult()
 	tft.drawString( ipAddress, tft.width() / 2, tft.height() / 2 - 32 );
 
 	// Draw this line 16 pixels above middle.
-	tft.drawString( "S/N : " + String( ht30SerialNumber ), tft.width() / 2, tft.height() / 2 - 16 );
+	//	tft.drawString( "S/N : " + String( ht30SerialNumber ), tft.width() / 2, tft.height() / 2 - 16 );
 
 	// Draw this line centered vertically and horizontally.
 	tft.drawString( tempBuffer, tft.width() / 2, tft.height() / 2 );
@@ -224,14 +223,19 @@ void printResult()
 
 void startSensor()
 {
-	sht30.begin( 0x44 ); // I2C address: 0x44 or 0x45
-	sht30.heaterDisable();
-	ht30SerialNumber = sht30.readSerialNumber();
-	Serial.print( "Serial # " );
-	Serial.println( ht30SerialNumber );
-	// Start the HT30 sensor and check the return value.
-	if( sht30.periodicStart( SHT3XD_REPEATABILITY_HIGH, SHT3XD_FREQUENCY_10HZ ) != SHT3XD_NO_ERROR )
-		Serial.println( "[ERROR] Cannot start periodic mode" );
+	unsigned status = bme.begin( 0x76 );
+	if( !status )
+	{
+		Serial.println( "Could not find a valid BME280 sensor, check wiring, address, sensor ID!" );
+		Serial.print( "SensorID was: 0x" );
+		Serial.println( bme.sensorID(), 16 );
+		Serial.print( "        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n" );
+		Serial.print( "   ID of 0x56-0x58 represents a BMP 280,\n" );
+		Serial.print( "        ID of 0x60 represents a BME 280.\n" );
+		Serial.print( "        ID of 0x61 represents a BME 680.\n" );
+		while( 1 )
+			delay( 10 );
+	}
 } // End of startSensor() function.
 
 
@@ -347,10 +351,10 @@ void readTelemetry()
 {
 	// Get the signal strength:
 	rssi = WiFi.RSSI();
-	result = sht30.periodicFetchData();
-	tempC = result.t;
+	tempC = bme.readTemperature();
 	tempF = ( tempC * 9 / 5 ) + 32;
-	humidity = result.rh;
+	humidity = bme.readHumidity();
+	pressure = bme.readPressure() / 100.0F;
 	getVoltage();
 } // End of the readTelemetry() function.
 
@@ -380,6 +384,9 @@ void publishTelemetry()
 	dtostrf( humidity, 1, 3, buffer );
 	if( mqttClient.publish( humidityTopic, buffer, false ) )
 		Serial.printf( "  %s\n", humidityTopic );
+	dtostrf( pressure, 1, 3, buffer );
+	if( mqttClient.publish( pressureTopic, buffer, false ) )
+		Serial.printf( "  %s\n", pressureTopic );
 } // End of the publishTelemetry() function.
 
 
@@ -401,8 +408,8 @@ void setup()
 	// Set the ipAddress char array to a default value.
 	snprintf( ipAddress, 16, "127.0.0.1" );
 
-	Serial.println( "Initializing the HT30 sensor..." );
-	// Initialize the HT30 sensor.
+	// Initialize the BME280 sensor.
+	Serial.println( "Initializing the BME280 sensor..." );
 	startSensor();
 
 	/*
@@ -533,19 +540,11 @@ void loop()
 	time = millis();
 	if( ( time > publishInterval ) && ( time - publishInterval ) > lastPublishTime )
 	{
-		// If the reading from the SHT30 library was valid.
-		if( result.error == SHT3XD_NO_ERROR )
-		{
-			String logString = "Publishing telemetry...";
-			// Draw this line centered horizontally, and near the bottom of the screen.
-			tft.drawString( logString, tft.width() / 2, tft.height() / 2 + 96 );
-			publishTelemetry();
-			publishCount++;
-		}
-		else
-		{
-			Serial.println( "\nUnable to read from the sensor!\n" );
-		}
+		String logString = "Publishing telemetry...";
+		// Draw this line centered horizontally, and near the bottom of the screen.
+		tft.drawString( logString, tft.width() / 2, tft.height() / 2 + 96 );
+		publishTelemetry();
+		publishCount++;
 		// Clear the line.
 		tft.drawString( "                       ", tft.width() / 2, tft.height() / 2 + 96 );
 		Serial.printf( "Next MQTT publish in %lu seconds.\n\n", publishInterval / 1000 );
