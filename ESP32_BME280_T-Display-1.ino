@@ -547,6 +547,7 @@ void loop()
 		publishCount++;
 		// Clear the line.
 		tft.drawString( "                       ", tft.width() / 2, tft.height() / 2 + 96 );
+		Serial.printf( "Source filename: %s\n\n", __FILE__ );
 		Serial.printf( "Next MQTT publish in %lu seconds.\n\n", publishInterval / 1000 );
 		lastPublishTime = millis();
 	}
