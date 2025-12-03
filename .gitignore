@@ -1,44 +1,131 @@
+##############
+## My files ##
+##############
+[pP]rivate[iI]nfo.*
+network[vV]ariables.*
+work[nN]etwork[vV]ariables.*
+
+############
+## Python ##
+############
+*.py[co]
+.pypirc
+venv/
+.venv/
+__pycache__/
+
+####################
+## JetBrains IDEs ##
+####################
 .idea/
 *.iml
-privateInfo.*
+
+##################
+## Maven output ##
+##################
+target/
+
+#################
+## CMake files ##
+#################
+cmake-build-*/
 debug_custom.json
-*.svd
 
-cmake-build-debug/
-bmp.h
+#######################
+## Arduino IDE files ##
+#######################
+esp*.svd
+
+#########################
+## Visual Studio files ##
+#########################
 .vscode/
-networkVariables.h
+c_cpp_properties.json
+*.user   # Individual user settings for a Visual Studio project.
+*.suo    # Solution User Options, Visual Studio workspace settings.
+*.vspscc # Source Control Integration files.
+.vs/     # Visual Studio (2017+) directory for local solution components.
+[Bb]in/  # Output directory.
+[Oo]bj/  # Intermediate object directory.
 
+######################
+## Windows detritus ##
+######################
+Thumbs.db
+ehthumbs.db
 
-# Prerequisites
-*.d
+########################
+## Folder config file ##
+########################
+[Dd]esktop.ini
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+#####################################
+## Recycle Bin used on file shares ##
+#####################################
+$RECYCLE.BIN/
 
-# Precompiled Headers
-*.gch
-*.pch
+##########################
+# macOS Finder metadata ##
+##########################
+.DS_Store
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+##############
+## Packages ##
+##############
+*.egg
+*.egg-info
+dist/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
 
-# Fortran module files
-*.mod
-*.smod
+####################
+## Installer logs ##
+####################
+pip-log.txt
 
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
+############################
+## Windows shortcut files ##
+############################
+*.lnk
+*.url
 
-# Executables
-*.exe
-*.out
-*.app
+##################
+## Backup files ##
+##################
+*.bak
+
+####################
+## Node.js / npm  ##
+####################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+###########################
+## General Build & Temp  ##
+###########################
+build/
+out/
+.cache/
+log/
+temp/
+tmp/
+
+######################
+## Linux/Unix files ##
+######################
+# Core dump files
+core
+# Vim/Swap/Backup files
+[.#]*swp
+
+#######################
+## Local environment ##
+#######################
+.env
+.env.local
